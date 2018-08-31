@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Infinite Paint</title>
+	<script type="text/javascript" src="/static/jquery"></script>
+	<script type="text/javascript" src="/static/mouse"></script>
+	<script type="text/javascript" src="/static/socket.io"></script>
+	<script type="text/javascript">
+		var wi = window,
+		    d = document,
+		    e = d.documentElement,
+		    g = d.getElementsByTagName('body')[0],
+		    w = wi.innerWidth || e.clientWidth || g.clientWidth,
+		    h = wi.innerHeight|| e.clientHeight|| g.clientHeight;
+		
+		var color = "#ff0000";
+
+		const path = window.location.pathname;
+	</script>
+	<style type="text/css">
+
+		body {
+			margin: 0;
+			overflow: hidden;
+		}
+
+		.foot {
+			bottom: 0;
+			position: absolute;
+			background-color: black;
+			width: 100%;
+			height: 75px;
+			color: white;
+		}
+
+		.infoot {
+			height: 100%;
+		}
+
+		#menu_context{
+			position: absolute;
+			color: black;
+			z-index: 999;
+			top: 0;
+			border: 1px solid grey;
+			box-shadow: 3px 5px 5px rgba(0, 0, 0, .7);
+			display: none;
+			background-color: white;
+		}
+
+		.Option {
+			
+			padding: 10px 30px;
+			font-family: sans-serif;
+			font-size: .9em;
+			cursor: pointer;
+
+		}
+
+		.Option:hover {
+			background-color: #499AFD;
+		}
+
+		#paint {
+			cursor: url(/static/brush_paint), auto;
+		}
+	</style>
+</head>
+<body>
+	<canvas id="paint"></canvas>
+	<script type="text/javascript">
+		var scrollX = 0, scrollY = 0, zoom = 10, lowestX = 0, lowestY = 0;
+
+		var test = []
+		for(var i = 0; i < 10; i += 5){
+			test[i] = "hi";
+		}
+		console.log(test.length)
+
+		var data = [];
+		$(document).ready(function(){
+			$.get(path + "/action/getdata", function(data, status){
+				//console.log("data: " + data + " status: " + status);
+				stringToData(data);
+			});
+		});
+		
+
+		function getFixedLocationX(x){
+			return (((Math.round((scrollX+x)/zoom))*zoom)-scrollX);
+		}
+
+		function getFixedLocationY(y){
+			return (((Math.round((scrollY+y)/zoom))*zoom)-scrollY);
+		}
+
+		var canvas = document.getElementById('paint');
+		canvas.width = w;
+		canvas.height = h;
+
+		var ctx = canvas.getContext('2d');
+
+		var mousedown = false;
+		var contextmenu = false;
+
+		var keydown = false;
+
+		var keys = {
+			UP: false,
+			DOWN: false,
+			LEFT: false,
+			RIGHT: false,
+		}
+
+		//test
+		$('#scroll').on('mousewheel', function(event) {
+			if(zoom + event.deltaY > 0)
+		    	zoom += event.deltaY;
+		    updatePixels();
+		});
+
+		function paint(e){
+			if(!contextmenu && e.buttons == 1){
+
+
+				var x = e.clientX, y = e.clientY + 8;
+
+				var fx = getFixedLocationX(x)/zoom, fy = getFixedLocationY(y)/zoom;
+				ctx.fillStyle = color;
+				ctx.fillRect(fx*zoom, fy*zoom, zoom, zoom);
+				
+				fx += scrollX/zoom;
+				fy += scrollY/zoom;
+
+				if(lowestX > fx){
+					lowestX = fx;
+				}
+
+				if(lowestY > fy){
+					lowestY = fy;
+				}
+
+				
+				if(data[fx] == undefined){
+					data[fx] = []
+				}
+				data[fx][fy] = color;
+
+				updatePixels();
+			}
+		}
+
+		canvas.addEventListener('mousedown', function(e){
+			mousedown = true;
+
+			paint(e);
+
+			if(contextmenu){
+				var menu = document.getElementById('menu_context');
+				menu.style.display = "none";
+				contextmenu = false;
+			}
+
+			
+		});
+
+		function dataToString(){
+			var str = "";
+			for(var x = lowestX; x < data.length + Math.abs(lowestX); x++){
+				if(data[x] != undefined){
+					for(var y = lowestY; y < data.length + Math.abs(lowestY); y++){
+						if(data[x][y] != undefined){
+							str += x + ";" + y + ";" + data[x][y] + "\n";
+						}
+					}
+				}
+			}
+			return str;
+		}
+
+		function stringToData(str){
+			if(str == "")
+				return;
+			var lines = str.split('\n');
+			for(var i = 0; i < lines.length; i++) {
+				var args = lines[i].split(';');
+				var x = parseInt(args[0]);
+				var y = parseInt(args[1]);
+				var color = args[2];
+
+				if(lowestX > x){
+					lowestX = x;
+				}
+
+				if(lowestY > y){
+					lowestY = y;
+				}
+
+				if(data[x] == undefined){
+					data[x] = [];
+				}
+				data[x][y] = color;
+
+			}
+
+			updatePixels();
+		}
+
+		document.addEventListener('contextmenu', function(e){
+			contextmenu = true;
+			e.preventDefault();
+			var menu = document.getElementById('menu_context');
+
+			menu.style.left = e.clientX + 'px';
+			menu.style.top = e.clientY + 'px';
+			menu.style.display = "block";
+		});
+
+
+		canvas.addEventListener('mouseup', function(e) {
+			mousedown = false;
+			if(contextmenu)
+				return;
+			var postdata = dataToString();
+			//console.log(postdata)
+			$.ajax({
+				type: "POST",
+				url:  path + "/action/update",
+				data: {data: postdata},
+				success: function(msg){
+			    	//console.log(msg);
+			   	}
+			});
+		});
+
+		document.addEventListener('mousemove', function(e){
+			if(mousedown){
+				paint(e);
+			}
+		});
+
+		document.addEventListener('keydown', function(e){
+			keydown = true;
+
+			if(e.keyCode == 38)
+				keys.UP = true;
+			if(e.keyCode == 39)
+				keys.LEFT = true;
+			if(e.keyCode == 40)
+				keys.DOWN = true;
+			if(e.keyCode == 37)
+				keys.RIGHT = true;
+		});
+
+		document.addEventListener('keyup', function(e){
+			keydown = false;
+
+			if(e.keyCode == 38)
+				keys.UP = false;
+			if(e.keyCode == 39)
+				keys.LEFT = false;
+			if(e.keyCode == 40)
+				keys.DOWN = false;
+			if(e.keyCode == 37)
+				keys.RIGHT = false;
+		});
+
+		function updatePixels(){
+			ctx.clearRect(0, 0, w, h);
+			for(var x = lowestX; x < data.length + Math.abs(lowestX); x++){
+				if(data[x] != undefined){
+					for(var y = lowestY; y < data[x].length + Math.abs(lowestY); y++){
+						if(data[x][y] != undefined){
+							ctx.fillStyle = data[x][y];
+							ctx.fillRect(x*zoom-scrollX, y*zoom-scrollY, zoom, zoom);
+						}
+					}
+				}
+			}
+		}
+
+		setInterval(function(){
+			if(keys.UP){
+				scrollY -= 10;
+				updatePixels()
+			}
+
+			if(keys.LEFT) {
+				scrollX += 10;
+				updatePixels()
+			}
+
+			if(keys.RIGHT) {
+				scrollX -= 10;
+				updatePixels()
+			}
+
+			if(keys.DOWN) {
+				scrollY += 10;
+				updatePixels()
+			}
+
+
+		}, 1000/60);
+
+
+	</script>
+	<div id="menu_context">
+		<div class="Option">
+			Save
+		</div>
+		<div class="Option">
+			lololololol
+		</div>
+	</div>
+
+	<div class="foot">
+		<input type="color" value="#ff0000" id="litir" class="infoot" oninput="color = this.value;">
+	</div>
+
+	<script type="text/javascript">
+		color = document.getElementById('litir').value;
+	</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
