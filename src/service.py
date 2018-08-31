@@ -82,4 +82,4 @@ def get(paint, action):
 		response.content_type = "text/plain"
 		return static_file("draw_data/" + paint, root=".")
 
-run(host='localhost', port=port)
+run(host='0.0.0.0', port=port)
