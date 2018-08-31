@@ -1,6 +1,16 @@
 import random
 
+from sys import argv
 from bottle import *
+
+port = 8080
+if len(argv) == 0:
+	argv.append("")
+
+if len(argv) == 1:
+	argv.append(port)
+else:
+	port = int(argv[1])
 
 stafir = "ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcdefghijklmnopqrstuvwxyz0123456789"
 
