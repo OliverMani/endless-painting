@@ -1,1 +1,1 @@
-web: python ./vsrc/service.py $PORT
+web: python ./src/service.py $PORT
